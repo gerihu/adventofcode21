@@ -120,6 +120,10 @@ fn play_bingo(input: &Vec<String>, find_last_board: bool) -> u32 {
                 remove_index.push(i);
             }
         }
+        if remove_index.len() > 1 {
+            remove_index.sort();
+            remove_index.reverse();
+        }
         for i in remove_index {
             boards.remove(i);
         }
