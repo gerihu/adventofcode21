@@ -1,70 +1,109 @@
-use std::ops::RangeInclusive;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 
 
 
 #[derive(Debug)]
-struct VentField {
-    horizontal: Vec<Vec<u8>>,
-    vertical: Vec<Vec<u8>>,
-}
+struct VentField (
+    HashMap<u32, u8>,
+);
 
 
 impl VentField {
-    fn overlaps(&self) -> u32 {
-        let mut count_overlap = 0u32;
-        for i in 0..self.horizontal.len() {
-            for j in 0..self.horizontal.len() {
-                if self.horizontal[i][j] + self.vertical[i][j] > 1{
-                    count_overlap += 1;
-                }
-            }
+    fn insert(&mut self, x: u16, y: u16) {
+        // try to insert and return count
+        let key = u32::from(x) | (u32::from(y) << 16);
+        if self.0.contains_key(&key) {
+            *self.0.get_mut(&key).unwrap() += 1;
+        } else {
+            self.0.insert(key, 1);
         }
-        count_overlap
+    }
+
+    fn get(&self, x: u16, y: u16) -> u8 {
+        let key = u32::from(x) | (u32::from(y) << 16);
+        match self.0.get(&key) {
+            Some(v) => *v,
+            _ => 0,
+        }
     }
 }
 
-fn get_range(from: usize, to: usize) -> RangeInclusive<usize> {
-    if from > to {
-        to..=from
+
+
+fn get_range(from: u16, to: u16) -> Vec<u16> {
+    if from <= to {
+        (from..=to).collect()
     } else {
-        from..=to
+        (to..=from).rev().collect()
     }
+
 }
 
-
-fn process_line(line: &String, vent_field: &mut VentField) {
-    let coords: Vec<usize> = line.split([' ', ',']).filter_map(|f| f.parse::<usize>().ok()).collect();
+fn process_line(line: &String, vent_field: &mut VentField, allow_diagonal: bool ) {
+    // we use u16 for the coords as they are limited to 0..1000
+    let coords: Vec<u16> = line.split([' ', ',']).filter_map(|f| f.parse::<u16>().ok()).collect();
 
     // 0,9 -> 5,9 horiz
     // 8,0 -> 0,8 ignore
     // 1,1 -> 1,3 vert
+
+    let x_range = get_range(coords[0], coords[2]);
+    let y_range = get_range(coords[1], coords[3]);
     
     if coords[0] == coords[2] { // vertical
-        for i in get_range(coords[1], coords[3]){
-            vent_field.vertical[i][coords[0]] += 1;
+        for i in y_range.iter() {
+            vent_field.insert(coords[0], *i);
         }
     } else if coords[1] == coords[3] { // horizontal
-        for i in get_range(coords[0], coords[2]) {
-            vent_field.horizontal[coords[1]][i] += 1;
+        for i in x_range.iter() {
+            vent_field.insert(*i, coords[1]);
+        }
+    } else if allow_diagonal && x_range.len() == y_range.len() {
+        for (x, y) in x_range.iter().zip(y_range.iter()) {
+            vent_field.insert(*x, *y);
         }
     }
 }
 
 
-fn find_crossing_vents(input: &Vec<String>, field_size: usize, star2: bool) -> u32 {
-    // read input and write to vertical and horizontal matrices
-    let mut vent_field = VentField {
-        horizontal: vec![vec![0_u8; field_size]; field_size],
-        vertical: vec![vec![0_u8; field_size]; field_size],
-    };
 
+fn find_crossing_vents(input: &Vec<String>, star2: bool) -> u32 {
+    // read input and write to vent points
+    let mut vent_field = VentField(
+        HashMap::new(),
+    );
+    
     for line in input {
-        process_line(line, &mut vent_field);
+        process_line(line, &mut vent_field, star2);
     }
 
-    let overlaps = vent_field.overlaps();
+    let mut line = String::new();
+
+    for y in 0..=9 {
+        for x in 0..=9 {
+            let val = vent_field.get(x,y);
+            line.push_str(&match val {
+                0 => ".".to_string(),
+                _ => val.to_string(),
+            });
+        }
+        println!("{y}:{line}");
+        line = String::new();
+    }
+    
+
+    let mut overlaps = 0u32;
+
+    for (_k, v) in vent_field.0 {
+        if v > 1 {
+            overlaps += 1;
+        }
+    }
+    
+
+
     println!("{overlaps}");
     
     overlaps
@@ -80,7 +119,8 @@ fn main() {
     let input: Vec<String> = reader.lines().filter_map(|line|line.ok()).collect();
 
 
-    println!("Star 1 {}",find_crossing_vents(&input, 1000, false));
+    println!("Star 1 {}",find_crossing_vents(&input, false));
+    println!("Star 2 {}",find_crossing_vents(&input, true));
 
 }
 
@@ -114,12 +154,12 @@ mod tests {
 
     #[test]
     fn star_one() {
-        assert_eq!(find_crossing_vents(&get_input(), 10, false), 5);
+        assert_eq!(find_crossing_vents(&get_input(), false), 5);
     }
 
-    //#[test]
+    #[test]
     fn star_two() {
-        assert_eq!(find_crossing_vents(&get_input(), 10, true), 0);
+        assert_eq!(find_crossing_vents(&get_input(), true), 12);
     }
 
 
