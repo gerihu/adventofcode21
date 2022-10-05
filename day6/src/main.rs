@@ -1,60 +1,38 @@
+use num_bigint::{BigUint, ToBigUint};
+use num_traits::{Zero, One};
+
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 
-#[derive(Debug)]
-struct Fish {
-    timer: u8,
-}
 
-impl Fish {
 
-    fn step_day(&mut self) -> Option<Fish> {
-        if self.timer == 0 {
-            self.timer = 6;
-            return Some(Fish{timer: 8});
-        }
-        self.timer -= 1;
-        None
+fn spawn_fish(start_day: u16, days:u16) -> BigUint{
+    //step n days until zero days and spawn fish for days - n
+    //println!("starting with {start_day} for {days} days.");
+    let steps = (start_day..days).step_by(7);
+    // count myself here only
+    let mut my_spawns = 1_u32.to_biguint().unwrap();
+    for d in steps {
+        my_spawns += spawn_fish(9, days-d);
     }
-}
-
-fn get_fish_states(fish: &Vec<Fish>) -> String {
-    let mut all_states = Vec::new();
-    for f in fish {
-        all_states.push(f.timer);
-    }
-    all_states.iter().map(|s|s.to_string()).collect::<Vec<String>>().join(&",")
-}
-
-
-fn spawn_lanternfish(input: &Vec<String>, days: u16, star2: bool) -> u64 {
-
-    let fish_states: Vec<u8> = input[0].split(',').filter_map(|num| num.parse::<u8>().ok()).collect();
-    let mut fish = Vec::new();
     
-    for state in &fish_states {
-        fish.push(Fish{timer: *state});
-    }
+    my_spawns
 
-    if fish_states.len() < 10 {
-        println!("Initial state: {}", get_fish_states(&fish));
-    }
-    // step days
-    for _i in 0..days {
-        let mut new_fish = Vec::new();
-        for f in &mut fish {
-            if let Some(spawn) = f.step_day() {
-                new_fish.push(spawn);
-            }
-        }
-        fish.append(&mut new_fish);
-        if fish_states.len() < 10 && _i < 18 {
-            println!("After {:>2} day{} {}", _i+1, if _i == 0{": "}else{"s:"}, get_fish_states(&fish));
-        }
-        println!("Day {_i}: {}", fish.len());
-    }
+}
 
-    fish.len().try_into().unwrap()
+
+fn spawn_lanternfish(input: &Vec<String>, days: u16) -> BigUint {
+
+    let fish_states: Vec<u16> = input[0].split(',').filter_map(|num| num.parse::<u16>().ok()).collect();
+    let mut total: BigUint = Zero::zero();
+    
+    for state in fish_states {
+        total += spawn_fish(state, days);
+        println!("{total}");}
+    println!("Total: {}", &total);
+
+    total
+
 }
 
 
@@ -65,7 +43,8 @@ fn main() {
     
     let input: Vec<String> = reader.lines().filter_map(|line|line.ok()).collect();
 
-    println!("Star 1: {}", spawn_lanternfish(&input, 80, false));
+    println!("Star 1: {}", spawn_lanternfish(&input, 80));
+    println!("Star 2: {}", spawn_lanternfish(&input, 256));
 }
 
 
@@ -73,6 +52,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     
+    use num_bigint::ToBigUint;
+
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
@@ -87,12 +68,13 @@ mod tests {
 
     #[test]
     fn star_one() {
-        assert_eq!(spawn_lanternfish(&get_input(), 80, false), 5934);
+        assert_eq!(spawn_lanternfish(&get_input(), 80), 5934.to_biguint().unwrap());
+        //assert_eq!(spawn_lanternfish(&get_input(), 18), 26.to_biguint().unwrap());
     }
 
     #[test]
     fn star_two() {
-        assert_eq!(spawn_lanternfish(&get_input(), 256, false), 26984457539);
+        assert_eq!(spawn_lanternfish(&get_input(), 256), 26984457539_u64.to_biguint().unwrap());
     }
 
 
