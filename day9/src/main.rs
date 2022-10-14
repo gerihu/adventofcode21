@@ -1,10 +1,9 @@
 #![feature(iter_collect_into)]
 
-
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 
-
+use itertools::Itertools;
 
 enum Star {
     One,
@@ -49,6 +48,39 @@ fn process_input(input: &Vec<String>) -> Vec<Vec<u8>> {
 
 }
 
+fn adjacent_point(p1: &(usize,usize), points: &Vec<(usize, usize)>) -> bool {
+    let mut res = false;
+    for p2 in points {
+        let mut d;
+        if p1.1 == p2.1 {
+            if p1.0 > p2.0 {
+                d = p1.0 - p2.0;
+            } else {
+                d = p2.0 - p1.0;
+            }
+            if d == 1 {
+                res = true;
+                break;
+            }
+        }
+
+        if p1.0 == p2.0 {
+            if p1.1 > p2.1 {
+                d = p1.1 - p2.1;
+            } else {
+                d = p2.1 - p1.1;
+            }
+            if d == 1 {
+                res = true;
+                break;
+            }
+        }
+    }
+    //println!("Point: {p1:?}, {res}");
+
+    res
+}
+
 
 fn find_lowpoints(input: &Vec<String>, star: Star) -> u32 {
     let point_map = process_input(&input);
@@ -78,69 +110,69 @@ fn find_lowpoints(input: &Vec<String>, star: Star) -> u32 {
     //println!("{lowpoints:?}");
 
     // find basins = all adjacdent points lower9
-    let mut basins = 1u32;
+   
     let mapsize = (point_map[0].len(), point_map.len());
-    for p in lowpoints {
-        let mut basin = 0;
-        //walk down
-        for h in (1..p.0+1).rev() {
 
-            if point_map[p.1][h] < 9 {
-                println!("h-: {h}, {}: {}", p.1, point_map[p.1][h]);
-                basin += 1;
-            } else {
-                break;
+    // walk the map and find points < 9
+    let mut basin_points = Vec::new();
+    for v in 1..mapsize.1 {
+        for h in 1..mapsize.0 {
+            if point_map[v][h] < 9 {
+                basin_points.push((h, v));
             }
-
-            for v in (1..p.1).rev() {
-                if point_map[v][h] < 9 {
-                    println!("h-v-: {h}, {v}: {}", point_map[v][h]);
-                    basin += 1;
-                } else {
-                    break;
-                }
-            }
-            for v in p.1+1..mapsize.1 {
-                if point_map[v][h] < 9 {
-                    println!("h-v+: {}, {v}: {}", h, point_map[v][h]);
-                    basin += 1;
-                } else {
-                    break;
-                }
-            }
-        
         }
-        for h in p.0+1..mapsize.0 {
-            if point_map[p.1][h] < 9 {
-                println!("h+: {h}, {}: {}", p.1, point_map[p.1][h]);
-                basin += 1;
-            } else {
-                break;
-            }
-
-            for v in (1..p.1).rev() {
-                if point_map[v][h] < 9 {
-                    println!("h+v-: {}, {v}: {}", h, point_map[v][h]);
-                    basin += 1;
-                } else {
-                    break;
-                }
-            }
-            for v in p.1+1..mapsize.1 {
-                if point_map[v][h] < 9 {
-                    println!("h+v+: {}, {v}: {}", h, point_map[v][h]);
-                    basin += 1;
-                } else {
-                    break;
-                }
-            }        
-        }
-        println!("point: {p:?}: {basin}");
-        basins *= basin;
-
     }
 
+    
+    // walk the basin_map and search adjactent points
+    let mut basins = Vec::new();
+    loop {
+        let mut adjacent: Vec<(usize,usize)> = Vec::new();
+        loop {
+            let start_size = basin_points.len();
+            let mut non_ajacent: Vec<(usize,usize)> = Vec::new();
+            while let Some(point) = basin_points.pop() {
+                if adjacent.len() == 0 {
+                    adjacent.push(point);
+                    continue;
+                }
+                if adjacent_point(&point, &adjacent) {
+                    adjacent.push(point);            
+                } else {
+                    non_ajacent.push(point);
+                }
+            }
+            let end_size = non_ajacent.len();
+            if end_size > 0 {
+                basin_points.append(&mut non_ajacent);
+            } 
+            
+            // check if any points where found - otherwise break
+            if end_size == start_size {
+                println!("len: {}, {adjacent:?}", adjacent.len());
+                println!("basins before: {basins:?}");
+                basins.push(adjacent);
+                println!("basins after push: {basins:?}");
+                break;
+            }
+        }
+        if basin_points.len() == 0 {
+            break;
+        }
+    }
+
+
     basins
+        .iter()
+        .map(|n|n.len() as u32)
+        .sorted()
+        .rev()
+        .take(3)
+        .fold(
+            1,
+            |total, next|
+                total*next
+            )
 
 }
 
@@ -156,8 +188,8 @@ fn main() {
         .collect::<Vec<String>>();
 
 
-    println!("Star 1: {}", find_lowpoints(&input, Star::One));
-    //println!("Star 2: {}", count_digits(&input, Star::Two));
+    //println!("Star 1: {}", find_lowpoints(&input, Star::One));
+    println!("Star 2: {}", find_lowpoints(&input, Star::Two));
 
 }
 
