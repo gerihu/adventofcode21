@@ -1,10 +1,6 @@
 use std::fs::File;
-use std::hash::Hash;
 use std::io::{prelude::*, BufReader};
-use std::collections::{HashMap, VecDeque};
 use std::fmt;
-use std::ops::Add;
-use itertools::Itertools;
 
 enum Star {
     One,
@@ -12,102 +8,54 @@ enum Star {
 }
 
 
-
-#[derive(Debug, Clone, Copy, Default)]
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
-struct Coords(
-    u8,
-    u8,
-);
-
-#[derive(Debug, Clone, Default)]
-struct Point<'a> {
-    coords: Coords,
-    state: u8,
-    neighbours: Vec<&'a Point<'a>>,
+#[derive(Default, Debug)]
+struct Grid {
+    total_flashes: u32,
+    points: [[(u8, Vec<(usize,usize)>); Self::SIZE]; Self::SIZE],
 }
 
-#[derive(Debug)]
-struct Grid<'a> {
-    points: HashMap<Coords, Point<'a>>,
-}
+impl Grid {
+    const SIZE: usize = 10;
 
-impl Grid<'_>{
 
-    const SIZE: u8 = 10;
-    const NBS: usize = 8;
-
-    fn new() -> Self {
-        let mut grid = Self {
-            points:  HashMap::with_capacity((Self::SIZE*Self::SIZE) as usize),
-        };
-        for y in 0..Self::SIZE {
-            for x in 0..Self::SIZE {
-                let nb: Point = Point::default();
-                let co: Coords = Coords(x,y);
-                grid.points.insert(
-                    co,
-                    Point{
-                        coords: co,
-                        state: 0,
-                        neighbours: Vec::with_capacity(Self::NBS),
-                    }
-                );
-            }
-        }
-        grid
-    }
-    
-    fn build_neighbours(&mut self) {
-         // add neighbours
-        for p in self.points.values() {
-            let left: u8 = match p.coords.0.checked_sub(1) {
-                Some(v) => v,
-                _ => p.coords.0,
-            };
-            let top: u8 = match p.coords.1.checked_sub(1) {
-                Some(v) => v,
-                _ => p.coords.1,
-            };
-            let right: u8 = match p.coords.0.add(2) {
-                11 => Self::SIZE,
-                v => v,
-            };
-            let bot: u8 = match p.coords.1.add(2) { 
-                11 => Self::SIZE,
-                v => v,
-            };
-
-            for y in top..bot {
-                for x in left..right {
-                    let nb = self.get(x, y);
-                    if nb.coords != p.coords {
-                        *p.neighbours.push(nb);
-                    }
+    fn add_one(&mut self) -> Vec<(usize,usize)> {
+        let mut neighbours = Vec::new();
+        for pline in self.points.iter_mut() {
+            for p in pline {
+                p.0 += 1;
+                if p.0 == 10 {
+                    p.0 = 11;
+                    neighbours.append(&mut p.1);
+                    self.total_flashes += 1;
                 }
             }
         }
-   }
-
-    fn get(&self, x: u8, y: u8) -> &Point {
-        self.points.get(&Coords(x, y)).unwrap()
+        neighbours
     }
 
-
+    fn normalize(&mut self) {
+        for pline in self.points.iter_mut() {
+            for p in pline {
+                if p.0 > 10 {
+                    p.0 = 0;
+                }
+            }
+        }
+    }
 }
 
-impl fmt::Display for Grid<'_> {
+impl fmt::Display for Grid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut output = String::new();
         for y in 0..Self::SIZE {
-            for x in 0..Self::SIZE + 1 {
+            for x in 0..Self::SIZE {
                 match char::from_digit(
-                        self.get(x,y).state.into(),
+                        self.points[x][y].0.into(),
                         10) 
                 {
                     Some('0') => output.push_str("\x1b[93m0\x1b[0m"),
                     Some(ch) => output.push(ch),
-                    None => output.push('x'),
+                    None => output.push_str("\x1b[93mx\x1b[0m"),
                 }
             }
             output.push('\n');
@@ -119,29 +67,73 @@ impl fmt::Display for Grid<'_> {
 
 
 
-fn process_input(input: &Vec<String>) -> Grid {
-    // return array of len of the 4 digits
-    // add borders with height 9 to always be able to check all 4 directions
-    let mut grid = Grid::new();
-    
-    for (y, line) in input.iter().enumerate() {
 
-        for (x, c) in line.chars().enumerate() {
-            let mut state = grid.points.get_mut(
-                &Coords(
-                    x.try_into().unwrap(), 
-                    y.try_into().unwrap()
-                )
-            ).unwrap().state;
-            state = u8::try_from(c.to_digit(10).unwrap()).unwrap();
+
+fn build_neighbours(grid: &mut Grid) {
+     // add neighbours
+    for y in 0..Grid::SIZE {
+        for x in 0..Grid::SIZE {
+           let left = match x.checked_sub(1) {
+                Some(v) => v,
+                _ => 0,
+            };
+            let top = match y.checked_sub(1) {
+                Some(v) => v,
+                _ => 0,
+            };
+            let right = if x+1 == Grid::SIZE {
+                    x + 1
+                } else {
+                    x + 2
+            };
+            let bot = if y+1 == Grid::SIZE {
+                    y + 1
+                } else {
+                    y + 2
+            };
+            let neighbours = &mut grid.points[x][y].1;
+            for ny in top..bot {
+                for nx in left..right {
+                    if nx != x || ny != y {
+                        //println!("point {x},{y}: {left}, {right}, {top}, {bot}");
+                        neighbours.push((nx,ny))
+                    }
+                }
+            }
         }
     }
-    println!("{grid}");
+}
+
+
+fn process_input(input: &Vec<String>) -> Grid {
+    let mut grid: Grid = Grid::default();
+    
+    for (y, line) in input.iter().enumerate() {
+        for (x, c) in line.chars().enumerate() {
+            grid.points[x][y].0 = u8::try_from(c.to_digit(10).unwrap()).unwrap();
+        }
+    }
+
+    // populate neighbours
+    build_neighbours(&mut grid); 
+    //println!("{grid:?}");
     grid
 
 }
 
-
+fn add_one(grid: &mut Grid, neighbours: &mut Vec<(usize,usize)>) {
+    let mut cache = Vec::new();
+    while let Some(n) = neighbours.pop() {
+        let p = &mut grid.points[n.0][n.1];
+        p.0 += 1;
+        if p.0 == 10 {
+            p.0 = 11;
+            cache.append(&mut p.1);
+            grid.total_flashes += 1;
+        }
+    }
+    neighbours.append(&mut cache);
+}
 
 fn step_flashes1(input: &Vec<String>, steps: u32) -> u32 {
     // prepare
@@ -150,15 +142,22 @@ fn step_flashes1(input: &Vec<String>, steps: u32) -> u32 {
 
 
     for step in 0..steps {
-        println!("After step {}\n{grid}", step+1);
+        let mut neighbours = grid.add_one();
+        while neighbours.len() > 0 {
+            add_one(&mut grid, &mut neighbours);
+        }
+
+        grid.normalize();
+        
+        println!("After step {}\n{grid}", step + 1);
     }
-    0
+    grid.total_flashes
 }
 
 
 fn count_flashes(input: &Vec<String>, star: Star) -> u32 {
     match star {
-        Star::One => step_flashes1(input, 3),
+        Star::One => step_flashes1(input, 100),
         Star::Two => 0,
     }
 }
@@ -207,7 +206,7 @@ mod tests {
 
     #[test]
     fn star_one1() {
-        assert_eq!(count_flashes(&get_input1(), Star::One), 26397);
+        assert_eq!(count_flashes(&get_input1(), Star::One), 1656);
     }
 
 
