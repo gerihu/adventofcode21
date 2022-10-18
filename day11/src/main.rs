@@ -10,13 +10,27 @@ enum Star {
 
 #[derive(Default, Debug)]
 struct Grid {
-    total_flashes: u32,
+    total_flashes: i32,
     points: [[(u8, Vec<(usize,usize)>); Self::SIZE]; Self::SIZE],
 }
 
 impl Grid {
     const SIZE: usize = 10;
 
+    fn synchronized_flash(&self) -> bool {
+        let mut count = 0;
+        for pline in self.points.iter() {
+            for p in pline {
+                if p.0 == 0 {
+                    count += 1;
+                }
+            }
+        }
+        match count {
+            100 => true,
+            _ => false,
+        }
+    }
 
     fn add_one(&mut self) -> Vec<(usize,usize)> {
         let mut neighbours = Vec::new();
@@ -25,7 +39,7 @@ impl Grid {
                 p.0 += 1;
                 if p.0 == 10 {
                     p.0 = 11;
-                    neighbours.append(&mut p.1);
+                    neighbours.append(&mut p.1.clone());
                     self.total_flashes += 1;
                 }
             }
@@ -100,6 +114,7 @@ fn build_neighbours(grid: &mut Grid) {
                     }
                 }
             }
+            //println!("{:?} #neigh: {:?}", (x,y), neighbours.len());
         }
     }
 }
@@ -128,14 +143,14 @@ fn add_one(grid: &mut Grid, neighbours: &mut Vec<(usize,usize)>) {
         p.0 += 1;
         if p.0 == 10 {
             p.0 = 11;
-            cache.append(&mut p.1);
+            cache.append(&mut p.1.clone());
             grid.total_flashes += 1;
         }
     }
     neighbours.append(&mut cache);
 }
 
-fn step_flashes1(input: &Vec<String>, steps: u32) -> u32 {
+fn step_flashes1(input: &Vec<String>, steps: i32) -> i32 {
     // prepare
     let mut grid = process_input(&input);
     println!("{grid}");
@@ -143,6 +158,7 @@ fn step_flashes1(input: &Vec<String>, steps: u32) -> u32 {
 
     for step in 0..steps {
         let mut neighbours = grid.add_one();
+        
         while neighbours.len() > 0 {
             add_one(&mut grid, &mut neighbours);
         }
@@ -150,15 +166,20 @@ fn step_flashes1(input: &Vec<String>, steps: u32) -> u32 {
         grid.normalize();
         
         println!("After step {}\n{grid}", step + 1);
+
+        if grid.synchronized_flash() {
+            return step + 1;
+        }
+
     }
     grid.total_flashes
 }
 
 
-fn count_flashes(input: &Vec<String>, star: Star) -> u32 {
+fn count_flashes(input: &Vec<String>, star: Star) -> i32 {
     match star {
         Star::One => step_flashes1(input, 100),
-        Star::Two => 0,
+        Star::Two => step_flashes1(input, 999999),
     }
 }
 
@@ -204,15 +225,15 @@ mod tests {
     
 
 
-    #[test]
+    //#[test]
     fn star_one1() {
         assert_eq!(count_flashes(&get_input1(), Star::One), 1656);
     }
 
 
-    //#[test]
+    #[test]
     fn star_two1() {
-        assert_eq!(count_flashes(&get_input1(), Star::Two), 288957);
+        assert_eq!(count_flashes(&get_input1(), Star::Two), 195);
     }
 
 
